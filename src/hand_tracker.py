@@ -34,14 +34,15 @@ class HandTracker:
     def __init__(
         self,
         max_hands: int = 1,
-        detection_confidence: float = 0.7,
-        tracking_confidence: float = 0.6,
+        detection_confidence: float = 0.5,
+        tracking_confidence: float = 0.5,
         model_dir: str = "models",
     ):
         self.max_hands = max_hands
         self.detection_confidence = detection_confidence
         self.tracking_confidence = tracking_confidence
         self.model_dir = model_dir
+
 
         self.tip_ids = [4, 8, 12, 16, 20]
         self.lm_list: List[Tuple[int, int, int]] = []
@@ -170,7 +171,7 @@ class HandTracker:
         return max(30.0, scale)
 
     def is_pinching(
-        self, threshold_ratio: float = 0.28
+        self, threshold_ratio: float = 0.35, min_pixel_dist: float = 42.0
     ) -> Tuple[bool, float, Tuple[int, int]]:
         """
         Checks if index finger (8) and thumb (4) are pinching together.
@@ -189,8 +190,9 @@ class HandTracker:
         norm_dist = raw_dist / hand_scale
 
         midpoint = ((ix + tx) // 2, (iy + ty) // 2)
-        is_pinch = norm_dist < threshold_ratio
+        is_pinch = (norm_dist < threshold_ratio) or (raw_dist < min_pixel_dist)
         return is_pinch, norm_dist, midpoint
+
 
     def fingers_up(self) -> List[int]:
         """

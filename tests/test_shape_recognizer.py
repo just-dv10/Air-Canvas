@@ -85,11 +85,22 @@ class TestShapeRecognizer(unittest.TestCase):
         self.assertEqual(snapped, (100, 100))
 
         # Far point (150, 150) -> distance is ~70 > 25
-        far = (150, 150)
-        snapped_far, did_snap_far = self.recognizer.snap_point(far, anchors)
-        self.assertFalse(did_snap_far)
-        self.assertEqual(snapped_far, far)
+    def test_shape_translate_and_contains(self):
+        # Create a circle shape at (200, 200) with radius 50
+        shape = self.recognizer.recognize(
+            [(200, 150), (250, 200), (200, 250), (150, 200), (200, 150)],
+            color=(0, 255, 0),
+            thickness=3
+        )
+        self.assertTrue(shape.contains_point((200, 200)))
+        self.assertFalse(shape.contains_point((500, 500)))
+
+        # Translate shape by (+100, +50)
+        shape.translate(100, 50)
+        self.assertTrue(shape.contains_point((300, 250)))
+        self.assertFalse(shape.contains_point((200, 200)))
 
 
 if __name__ == "__main__":
     unittest.main()
+

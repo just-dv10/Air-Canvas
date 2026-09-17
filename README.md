@@ -21,6 +21,10 @@
     - **Circles & Ellipses** (smooth circular contours)
     - **Triangles** (3-vertex polygon fitting)
     - **Freehand Curves** (smooth polyline interpolation)
+- ✋ **Grab & Move Shapes (Drag and Drop in Air)**:
+  - Pinch directly on any existing shape to pick it up and move it anywhere on the canvas!
+  - As you drag, a glowing bounding box shows the shape following your hand in real-time.
+  - Release your pinch to drop the shape in its new place (it will automatically connect/snap to any nearby anchors!).
 - 🧲 **Magnetic Anchor Snapping (Connect Shapes)**:
   - Every shape generates connectable anchor points at its corners, endpoints, and centers.
   - Starting or ending a stroke near an existing anchor automatically snaps to it, allowing you to easily build connected shapes, multi-shape diagrams, house blueprints, polygons, and flowcharts.
@@ -40,11 +44,13 @@
 
 | Gesture | Fingers / Hand | Action |
 | :--- | :---: | :--- |
-| 🤏 **Index + Thumb Pinch** | Pinch (Touch together) | **Draw Mode**: Paints live stroke on canvas or taps toolbar buttons. |
-| ✋ **Pinch Released** | Separate Fingers | **Auto-Shape**: Analyzes stroke and converts it into a clean shape. |
+| 🤏 **Pinch on a Shape** | Index + Thumb on shape | **Grab & Move**: Picks up the shape. Drag your hand to place it anywhere! |
+| 🤏 **Pinch in Empty Space** | Index + Thumb together | **Draw Mode**: Paints live stroke or taps toolbar buttons. |
+| ✋ **Pinch Released** | Separate Fingers | **Auto-Shape / Drop**: Converts stroke to clean shape, or drops moved shape. |
 | 🧲 **Near Corner/Vertex** | Hover < 28px from anchor | **Magnetic Snap**: Snaps start or end point to connect shapes together. |
 | 🖐️ **Open Palm (5 Fingers)** | Spread hand & hold ~1s | **Canvas Clear**: Activates circular progress wipe to clear canvas. |
 | 👆 **Hover / Navigation** | No pinch | **Free Cursor**: Move crosshair across screen without drawing. |
+
 
 ---
 

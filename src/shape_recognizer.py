@@ -29,6 +29,69 @@ class RecognizedShape:
         self.thickness = thickness
         self.metadata = metadata or {}
 
+    def translate(self, dx: int, dy: int) -> None:
+        """Moves all shape points and anchors by (dx, dy)."""
+        self.points = [(x + dx, y + dy) for (x, y) in self.points]
+        self.anchors = [(x + dx, y + dy) for (x, y) in self.anchors]
+        if "center" in self.metadata:
+            cx, cy = self.metadata["center"]
+            self.metadata["center"] = (cx + dx, cy + dy)
+        if "x" in self.metadata and "y" in self.metadata:
+            self.metadata["x"] += dx
+            self.metadata["y"] += dy
+
+    def get_bounds(self) -> Tuple[int, int, int, int]:
+        """Returns (min_x, min_y, max_x, max_y) bounding box."""
+        if self.shape_type == "circle":
+            cx, cy = self.metadata.get("center", self.points[0] if self.points else (0, 0))
+            r = self.metadata.get("radius", 20)
+            return (cx - r, cy - r, cx + r, cy + r)
+
+        if not self.points:
+            return (0, 0, 0, 0)
+
+        xs = [p[0] for p in self.points]
+        ys = [p[1] for p in self.points]
+        return (min(xs), min(ys), max(xs), max(ys))
+
+    def contains_point(self, pt: Tuple[int, int], margin: float = 22.0) -> bool:
+        """Checks if a point (x, y) is inside or near this shape."""
+        px, py = pt
+
+        if self.shape_type == "circle":
+            cx, cy = self.metadata.get("center", self.points[0] if self.points else (0, 0))
+            r = self.metadata.get("radius", 20)
+            return math.hypot(px - cx, py - cy) <= (r + margin)
+
+        elif self.shape_type in ("rectangle", "triangle"):
+            if not self.points:
+                return False
+            contour = np.array(self.points, dtype=np.int32).reshape((-1, 1, 2))
+            dist = cv2.pointPolygonTest(contour, (float(px), float(py)), True)
+            return dist >= -margin
+
+        elif self.shape_type in ("line", "curve"):
+            if len(self.points) < 2:
+                return False
+            for i in range(len(self.points) - 1):
+                p1 = self.points[i]
+                p2 = self.points[i + 1]
+                # Distance from point to line segment
+                l2 = (p2[0] - p1[0])**2 + (p2[1] - p1[1])**2
+                if l2 == 0:
+                    d = math.hypot(px - p1[0], py - p1[1])
+                else:
+                    t = max(0.0, min(1.0, ((px - p1[0]) * (p2[0] - p1[0]) + (py - p1[1]) * (p2[1] - p1[1])) / l2))
+                    proj_x = p1[0] + t * (p2[0] - p1[0])
+                    proj_y = p1[1] + t * (p2[1] - p1[1])
+                    d = math.hypot(px - proj_x, py - proj_y)
+                if d <= margin:
+                    return True
+            return False
+
+        return False
+
+
 
 class ShapeRecognizer:
     """
@@ -104,7 +167,8 @@ class ShapeRecognizer:
         endpoint_dist = math.hypot(points[-1][0] - points[0][0], points[-1][1] - points[0][1])
 
         # Check if shape is closed (endpoints close relative to total length)
-        is_closed = (endpoint_dist < max(35.0, 0.22 * path_length)) and len(points) >= 10
+        is_closed = (endpoint_dist < max(35.0, 0.22 * path_length)) and len(points) >= 5
+
 
         contour = np.array(points, dtype=np.int32).reshape((-1, 1, 2))
 

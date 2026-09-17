@@ -99,6 +99,26 @@ class TestCanvas(unittest.TestCase):
         self.assertEqual(len(self.canvas.shapes), 0)
         self.assertEqual(len(self.canvas.anchors), 0)
 
+    def test_canvas_find_and_move_shape(self):
+        from src.shape_recognizer import ShapeRecognizer
+        recognizer = ShapeRecognizer()
+        # Add a line
+        for i in range(10):
+            self.canvas.add_stroke_point((100 + i * 10, 100 + i * 10))
+        self.canvas.finish_stroke(recognizer)
+
+        # Hit test near (150, 150)
+        idx = self.canvas.find_shape_at((150, 150))
+        self.assertEqual(idx, 0)
+
+        # Move the shape by (+50, +50)
+        self.canvas.move_shape(0, 50, 50)
+        # Old position should no longer hit
+        self.assertIsNone(self.canvas.find_shape_at((100, 100)))
+        # New position should hit
+        self.assertEqual(self.canvas.find_shape_at((200, 200)), 0)
+
+
 
 
 class TestUIOverlay(unittest.TestCase):

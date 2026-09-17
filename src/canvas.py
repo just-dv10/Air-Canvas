@@ -132,19 +132,96 @@ class Canvas:
                     pts = np.array(s.points, dtype=np.int32).reshape((-1, 1, 2))
                     cv2.polylines(self.canvas, [pts], isClosed=False, color=s.color, thickness=s.thickness, lineType=cv2.LINE_AA)
 
-    def undo(self) -> bool:
-        """Removes the last drawn shape."""
-        if not self.shapes:
-            return False
-        self.shapes.pop()
-        # Rebuild anchors list
+    def _rebuild_anchors(self) -> None:
+        """Reconstructs unique anchor points from all current shapes."""
         self.anchors = []
         for s in self.shapes:
             for a in s.anchors:
                 if a not in self.anchors:
                     self.anchors.append(a)
+
+    def find_shape_at(self, pt: Tuple[int, int], margin: float = 24.0) -> Optional[int]:
+        """Returns the index of the topmost shape containing or near pt."""
+        for i in reversed(range(len(self.shapes))):
+            if self.shapes[i].contains_point(pt, margin=margin):
+                return i
+        return None
+
+    def move_shape(self, shape_idx: int, dx: int, dy: int) -> None:
+        """Translates shape points and refreshes canvas."""
+        if 0 <= shape_idx < len(self.shapes):
+            self.shapes[shape_idx].translate(dx, dy)
+            self._rebuild_anchors()
+            self._render_all_shapes()
+
+    def snap_shape_anchors(self, shape_idx: int, snap_threshold: float = 28.0) -> bool:
+        """
+        After moving a shape, snaps it if any of its anchors are close to another shape's anchors.
+        """
+        if not (0 <= shape_idx < len(self.shapes)):
+            return False
+
+        moved_shape = self.shapes[shape_idx]
+        other_anchors = []
+        for i, s in enumerate(self.shapes):
+            if i != shape_idx:
+                other_anchors.extend(s.anchors)
+
+        if not other_anchors:
+            return False
+
+        best_delta = None
+        min_dist = float("inf")
+        for a in moved_shape.anchors:
+            for target in other_anchors:
+                d = np.hypot(a[0] - target[0], a[1] - target[1])
+                if d < min_dist and d <= snap_threshold:
+                    min_dist = d
+                    best_delta = (target[0] - a[0], target[1] - a[1])
+
+        if best_delta:
+            self.move_shape(shape_idx, int(best_delta[0]), int(best_delta[1]))
+            return True
+        return False
+
+    def render_shape_box(self, frame: cv2.Mat, shape_idx: int, is_grabbed: bool = False) -> None:
+        """Draws bounding box feedback when hovering or grabbing a shape."""
+        if not (0 <= shape_idx < len(self.shapes)):
+            return
+
+        shape = self.shapes[shape_idx]
+        x1, y1, x2, y2 = shape.get_bounds()
+        pad = 10
+        bx1, by1 = max(0, x1 - pad), max(0, y1 - pad)
+        bx2, by2 = min(self.width, x2 + pad), min(self.height, y2 + pad)
+
+        border_color = (0, 255, 0) if is_grabbed else (0, 220, 255)
+        thickness = 2 if is_grabbed else 1
+
+        # Bounding box
+        cv2.rectangle(frame, (bx1, by1), (bx2, by2), border_color, thickness, cv2.LINE_AA)
+
+        # Corner handles
+        h_size = 6
+        for cx, cy in [(bx1, by1), (bx2, by1), (bx2, by2), (bx1, by2)]:
+            cv2.rectangle(frame, (cx - h_size // 2, cy - h_size // 2), (cx + h_size // 2, cy + h_size // 2), border_color, cv2.FILLED)
+
+        # Tag label
+        label = "DRAGGING" if is_grabbed else "PINCH TO GRAB"
+        tag_bg = (0, 180, 0) if is_grabbed else (25, 25, 30)
+        text_color = (0, 0, 0) if is_grabbed else (255, 255, 255)
+        cv2.rectangle(frame, (bx1, max(0, by1 - 22)), (bx1 + 115, by1), tag_bg, cv2.FILLED)
+        cv2.putText(frame, label, (bx1 + 6, by1 - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.38, text_color, 1, cv2.LINE_AA)
+
+    def undo(self) -> bool:
+        """Removes the last drawn shape."""
+        if not self.shapes:
+            return False
+        self.shapes.pop()
+        self._rebuild_anchors()
         self._render_all_shapes()
         return True
+
 
     def clear(self) -> None:
         """Clears all strokes, shapes, and connection anchors."""
