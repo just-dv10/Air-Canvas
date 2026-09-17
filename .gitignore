@@ -1,0 +1,36 @@
+# Python virtual environments
+venv/
+.venv/
+ENV/
+env/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Output captures & screenshots
+saved_drawings/
+*.png
+*.jpg
+*.jpeg
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Logs and OS files
+*.log
+.DS_Store
+Thumbs.db
+
+# Large model binaries (auto-downloaded on first run)
+models/*.task
+
