@@ -113,8 +113,8 @@ air-canvas-ai/
 
 ### 2. Clone the Repository
 ```bash
-git clone https://github.com/<YOUR-USERNAME>/air-canvas-ai.git
-cd air-canvas-ai
+git clone https://github.com/just-dv10/Air-Canvas.git
+cd Air-Canvas
 ```
 
 ### 3. Set Up Virtual Environment (Recommended)
