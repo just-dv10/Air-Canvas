@@ -40,6 +40,31 @@ class RecognizedShape:
             self.metadata["x"] += dx
             self.metadata["y"] += dy
 
+    def scale(self, scale_factor: float, origin: Optional[Tuple[int, int]] = None) -> None:
+        """Scales the shape relative to origin (default: shape center)."""
+        if scale_factor <= 0:
+            return
+        if origin is None:
+            bx1, by1, bx2, by2 = self.get_bounds()
+            origin = ((bx1 + bx2) // 2, (by1 + by2) // 2)
+
+        ox, oy = origin
+        self.points = [
+            (int(ox + (x - ox) * scale_factor), int(oy + (y - oy) * scale_factor))
+            for (x, y) in self.points
+        ]
+        self.anchors = [
+            (int(ox + (x - ox) * scale_factor), int(oy + (y - oy) * scale_factor))
+            for (x, y) in self.anchors
+        ]
+        if self.shape_type == "circle":
+            r = int(self.metadata.get("radius", 20) * scale_factor)
+            self.metadata["radius"] = max(5, r)
+            if "center" in self.metadata:
+                cx, cy = self.metadata["center"]
+                self.metadata["center"] = (int(ox + (cx - ox) * scale_factor), int(oy + (cy - oy) * scale_factor))
+
+
     def get_bounds(self) -> Tuple[int, int, int, int]:
         """Returns (min_x, min_y, max_x, max_y) bounding box."""
         if self.shape_type == "circle":

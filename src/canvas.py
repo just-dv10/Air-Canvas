@@ -5,7 +5,7 @@ color palettes, blending, and snapshot exports.
 
 import os
 import time
-from typing import Tuple, List, Optional
+from typing import Tuple, List, Optional, Dict
 import cv2
 import numpy as np
 from src.shape_recognizer import RecognizedShape, ShapeRecognizer
@@ -38,12 +38,29 @@ class Canvas:
         # Shape repository and anchor connectivity
         self.shapes: List[RecognizedShape] = []
         self.anchors: List[Tuple[int, int]] = []
-        self.current_stroke: List[Tuple[int, int]] = []
-        self.prev_point: Optional[Tuple[int, int]] = None
+        self.current_strokes: Dict[str, List[Tuple[int, int]]] = {"Right": [], "Left": []}
+        self.prev_points: Dict[str, Optional[Tuple[int, int]]] = {"Right": None, "Left": None}
 
-    def reset_point(self) -> None:
-        """Resets the previous drawing point."""
-        self.prev_point = None
+    @property
+    def current_stroke(self) -> List[Tuple[int, int]]:
+        """Backwards compatibility for primary hand stroke."""
+        return self.current_strokes["Right"]
+
+    @current_stroke.setter
+    def current_stroke(self, val: List[Tuple[int, int]]) -> None:
+        self.current_strokes["Right"] = val
+
+    @property
+    def prev_point(self) -> Optional[Tuple[int, int]]:
+        return self.prev_points["Right"]
+
+    @prev_point.setter
+    def prev_point(self, val: Optional[Tuple[int, int]]) -> None:
+        self.prev_points["Right"] = val
+
+    def reset_point(self, hand: str = "Right") -> None:
+        """Resets the previous drawing point for the given hand."""
+        self.prev_points[hand] = None
 
     def set_color(self, color_bgr: Tuple[int, int, int]) -> None:
         """Sets the active drawing color."""
@@ -61,57 +78,63 @@ class Canvas:
         """Clamps eraser thickness within safe bounds [15, 120]."""
         self.eraser_thickness = max(15, min(size, 120))
 
-    def add_stroke_point(self, point: Tuple[int, int]) -> None:
-        """Adds a point to the currently active stroke."""
-        # Avoid recording duplicate consecutive points
-        if not self.current_stroke or self.current_stroke[-1] != point:
-            self.current_stroke.append(point)
+    def add_stroke_point(self, point: Tuple[int, int], hand: str = "Right") -> None:
+        """Adds a point to the stroke for the specified hand."""
+        stroke = self.current_strokes.setdefault(hand, [])
+        if not stroke or stroke[-1] != point:
+            stroke.append(point)
 
-    def draw_direct(self, point: Tuple[int, int]) -> None:
-        """Draws directly onto the canvas buffer (used for eraser strokes)."""
-        if self.prev_point is None:
-            self.prev_point = point
+    def draw_direct(self, point: Tuple[int, int], hand: str = "Right") -> None:
+        """Draws directly onto canvas buffer (used for eraser strokes)."""
+        prev = self.prev_points.get(hand)
+        if prev is None:
+            self.prev_points[hand] = point
             return
 
         thickness = self.eraser_thickness if self.is_eraser_active() else self.brush_thickness
-        cv2.line(self.canvas, self.prev_point, point, self.current_color, thickness, lineType=cv2.LINE_AA)
+        cv2.line(self.canvas, prev, point, self.current_color, thickness, lineType=cv2.LINE_AA)
         cv2.circle(self.canvas, point, thickness // 2, self.current_color, cv2.FILLED)
-        self.prev_point = point
+        self.prev_points[hand] = point
 
     # Backwards-compatible alias
     draw = draw_direct
 
-
-    def finish_stroke(self, recognizer: ShapeRecognizer) -> Optional[RecognizedShape]:
+    def finish_stroke(self, recognizer: ShapeRecognizer, hand: str = "Right") -> Optional[RecognizedShape]:
         """
-        Processes the active stroke: recognizes geometric shape or curve,
-        commits it to canvas, registers anchors, and clears the stroke buffer.
+        Processes stroke for specified hand, recognizes shape, and commits to canvas.
         """
-        if len(self.current_stroke) < 2:
-            self.current_stroke = []
+        stroke = self.current_strokes.get(hand, [])
+        if len(stroke) < 2:
+            self.current_strokes[hand] = []
             return None
 
-        # Eraser stroke is already applied or can wipe
         if self.is_eraser_active():
-            self.current_stroke = []
+            self.current_strokes[hand] = []
             return None
 
         shape = recognizer.recognize(
-            points=self.current_stroke,
+            points=stroke,
             color=self.current_color,
             thickness=self.brush_thickness,
             existing_anchors=self.anchors,
         )
 
         self.shapes.append(shape)
-        # Register new anchors for connecting future shapes
         for anchor in shape.anchors:
             if anchor not in self.anchors:
                 self.anchors.append(anchor)
 
         self._render_all_shapes()
-        self.current_stroke = []
+        self.current_strokes[hand] = []
         return shape
+
+    def scale_shape(self, shape_idx: int, factor: float, origin: Optional[Tuple[int, int]] = None) -> None:
+        """Scales shape by factor relative to origin and refreshes canvas."""
+        if 0 <= shape_idx < len(self.shapes):
+            self.shapes[shape_idx].scale(factor, origin)
+            self._rebuild_anchors()
+            self._render_all_shapes()
+
 
     def _render_all_shapes(self) -> None:
         """Re-draws all committed shapes onto the canvas."""
@@ -228,15 +251,17 @@ class Canvas:
         self.canvas[:] = 0
         self.shapes = []
         self.anchors = []
-        self.current_stroke = []
-        self.prev_point = None
+        self.current_strokes = {"Right": [], "Left": []}
+        self.prev_points = {"Right": None, "Left": None}
 
     def render_live_preview(self, frame: cv2.Mat) -> None:
-        """Renders the stroke currently being drawn by the user in real time."""
-        if len(self.current_stroke) >= 2:
-            pts = np.array(self.current_stroke, dtype=np.int32).reshape((-1, 1, 2))
-            thickness = self.eraser_thickness if self.is_eraser_active() else self.brush_thickness
-            cv2.polylines(frame, [pts], isClosed=False, color=self.current_color, thickness=thickness, lineType=cv2.LINE_AA)
+        """Renders both hands' active strokes as live previews in real time."""
+        for hand, stroke in self.current_strokes.items():
+            if len(stroke) >= 2:
+                pts = np.array(stroke, dtype=np.int32).reshape((-1, 1, 2))
+                thickness = self.eraser_thickness if self.is_eraser_active() else self.brush_thickness
+                color = self.current_color if not self.is_eraser_active() else (0, 0, 0)
+                cv2.polylines(frame, [pts], isClosed=False, color=color, thickness=thickness, lineType=cv2.LINE_AA)
 
     def render_anchors(
         self,
