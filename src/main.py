@@ -1,6 +1,7 @@
 """
-Air Canvas AI - Main Application Entry Point.
-Runs the webcam loop, tracks hand gestures, handles UI interaction, and renders the canvas.
+Air Canvas AI - Main Application Loop.
+Features adaptive jitter smoothing, pinch-to-draw precision,
+smart geometric shape auto-detection with anchor snapping, and open-palm clearing.
 """
 
 import argparse
@@ -10,6 +11,7 @@ import cv2
 from src.hand_tracker import HandTracker
 from src.canvas import Canvas
 from src.ui_overlay import UIOverlay
+from src.shape_recognizer import ShapeRecognizer
 
 
 def parse_args():
@@ -23,9 +25,9 @@ def parse_args():
 def main():
     args = parse_args()
 
-    print("=" * 60)
-    print("   AIR CANVAS AI - Computer Vision Hand Drawing")
-    print("=" * 60)
+    print("=" * 65)
+    print("   AIR CANVAS AI - High-Precision Hand Drawing & Smart Shapes")
+    print("=" * 65)
     print("Initializing camera...")
 
     cap = cv2.VideoCapture(args.camera)
@@ -40,13 +42,18 @@ def main():
     tracker = HandTracker(max_hands=1, detection_confidence=0.75, tracking_confidence=0.65)
     canvas = Canvas(width=args.width, height=args.height)
     ui = UIOverlay(width=args.width)
+    recognizer = ShapeRecognizer(snap_threshold=28.0)
 
     blackboard_mode = False
     prev_time = time.time()
+    palm_hold_start: float = 0.0
 
     print("\n[INFO] Controls & Gestures:")
-    print(" - Index Finger ONLY: Draw on canvas")
-    print(" - Index + Middle Fingers: Selection mode (choose colors/tools on top bar)")
+    print(" - PINCH (Thumb + Index together): Draw stroke or tap toolbar buttons")
+    print(" - RELEASE PINCH: Auto-recognizes shapes (Line, Box, Circle, Triangle, Curve)")
+    print(" - CONNECT SHAPES: Move cursor near an existing corner/endpoint to snap & connect")
+    print(" - OPEN PALM (hold 1 sec): Wipe/clear canvas")
+    print(" - 'z': Undo last shape")
     print(" - 'c': Clear canvas")
     print(" - 's': Save artwork to saved_drawings/")
     print(" - 'b': Toggle AR view / Blackboard view")
@@ -55,81 +62,118 @@ def main():
 
     try:
         while True:
+            curr_time = time.time()
+            dt = curr_time - prev_time
+            fps = 1.0 / dt if dt > 0 else 0
+            prev_time = curr_time
+
             success, frame = cap.read()
             if not success:
                 print("[WARNING] Frame capture failed. Retrying...")
                 continue
 
-            # Mirror the frame horizontally for natural user experience
             frame = cv2.flip(frame, 1)
             h, w, _ = frame.shape
 
-            # Sync canvas dimensions if webcam resolution differs from requested
             if canvas.width != w or canvas.height != h:
                 canvas.resize(w, h)
                 ui.update_dimensions(w)
 
-            # Process hand landmarks
+            # Process hand landmarks with stabilizer
             frame = tracker.find_hands(frame, draw=False)
             lm_list = tracker.find_positions(frame)
 
             mode_str = "STANDBY"
+            is_pinch = False
+            is_snapped = False
+            target_pt = (0, 0)
+            palm_clear_progress = 0.0
 
             if len(lm_list) >= 21:
-                # Landmark 8: Index fingertip, Landmark 12: Middle fingertip
-                x1, y1 = lm_list[8][1], lm_list[8][2]
-                x2, y2 = lm_list[12][1], lm_list[12][2]
+                is_pinch, norm_dist, midpoint = tracker.is_pinching()
+                is_palm = tracker.is_open_palm()
 
-                fingers = tracker.fingers_up()
+                # GESTURE: OPEN PALM CLEAR COUNTDOWN
+                if is_palm and not is_pinch:
+                    mode_str = "OPEN PALM (CLEARING...)"
+                    if palm_hold_start == 0.0:
+                        palm_hold_start = curr_time
 
-                # GESTURE 1: SELECTION MODE (Index & Middle fingers are both UP)
-                if fingers[1] == 1 and fingers[2] == 1:
-                    mode_str = "SELECTION / HOVER"
-                    canvas.reset_point()
+                    elapsed = curr_time - palm_hold_start
+                    palm_clear_progress = min(1.0, elapsed / 0.9)
 
-                    # Draw selection cursor indicator between the two fingertips
-                    cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
-                    cv2.circle(frame, (cx, cy), 15, (255, 255, 0), cv2.FILLED)
-                    cv2.circle(frame, (cx, cy), 20, (255, 255, 255), 2)
-
-                    # Check if user clicked/hovered over the top toolbar buttons
-                    ui.check_interaction(cx, cy, canvas)
-
-                # GESTURE 2: DRAWING MODE (ONLY Index finger is UP)
-                elif fingers[1] == 1 and fingers[2] == 0:
-                    mode_str = "DRAWING"
-                    # Visual feedback indicator at fingertip
-                    tip_color = (200, 200, 200) if canvas.is_eraser_active() else canvas.current_color
-                    brush_rad = canvas.eraser_thickness // 2 if canvas.is_eraser_active() else canvas.brush_thickness // 2
-                    cv2.circle(frame, (x1, y1), max(brush_rad, 6), tip_color, cv2.FILLED)
-                    cv2.circle(frame, (x1, y1), max(brush_rad, 6) + 2, (255, 255, 255), 1)
-
-                    # Only draw if below the header toolbar
-                    if y1 > ui.header_height:
-                        canvas.draw((x1, y1))
-                    else:
-                        canvas.reset_point()
-
-                # GESTURE 3: STANDBY (Other finger combinations or fist)
+                    if palm_clear_progress >= 1.0:
+                        canvas.clear()
+                        ui.show_toast("Canvas Cleared via Open Palm!")
+                        palm_hold_start = 0.0
+                        palm_clear_progress = 0.0
                 else:
-                    mode_str = "STANDBY"
-                    canvas.reset_point()
-            else:
-                mode_str = "NO HAND DETECTED"
-                canvas.reset_point()
+                    palm_hold_start = 0.0
+                    palm_clear_progress = 0.0
 
-            # Render output frame (either AR camera blend or pure blackboard)
+                    # Check magnetic snap to existing shape anchors
+                    snapped_pt, is_snapped = recognizer.snap_point(midpoint, canvas.anchors)
+                    target_pt = snapped_pt if is_snapped else midpoint
+
+                    # DRAWING OR TOOLBAR INTERACTION (PINCH)
+                    if is_pinch:
+                        # If inside toolbar, click button
+                        if midpoint[1] <= ui.header_height:
+                            mode_str = "TOOLBAR CLICK"
+                            ui.check_interaction(midpoint[0], midpoint[1], canvas)
+                            canvas.current_stroke = []
+                        else:
+                            mode_str = "PINCH DRAWING"
+                            if canvas.is_eraser_active():
+                                canvas.draw_direct(target_pt)
+                            else:
+                                canvas.add_stroke_point(target_pt)
+                    else:
+                        # Pinch released: finish active stroke and run smart shape recognizer
+                        if len(canvas.current_stroke) >= 2:
+                            recognized = canvas.finish_stroke(recognizer)
+                            if recognized:
+                                shape_name = recognized.shape_type.capitalize()
+                                ui.show_toast(f"Smart Shape: {shape_name}")
+                        else:
+                            canvas.current_stroke = []
+
+                        canvas.reset_point()
+                        mode_str = "HOVER / NAVIGATION"
+            else:
+                # No hand in frame
+                palm_hold_start = 0.0
+                palm_clear_progress = 0.0
+                if len(canvas.current_stroke) >= 2:
+                    canvas.finish_stroke(recognizer)
+                canvas.current_stroke = []
+                canvas.reset_point()
+                mode_str = "NO HAND DETECTED"
+
+            # 1. Base display frame
             if blackboard_mode:
                 display_frame = canvas.canvas.copy()
             else:
                 display_frame = canvas.blend(frame)
 
-            # Calculate FPS
-            curr_time = time.time()
-            fps = 1.0 / (curr_time - prev_time) if (curr_time - prev_time) > 0 else 0
-            prev_time = curr_time
+            # 2. Render shape connection anchors & live drawing stroke
+            if len(lm_list) >= 21:
+                canvas.render_anchors(display_frame, hover_pt=target_pt, snap_threshold=recognizer.snap_threshold)
+                canvas.render_live_preview(display_frame)
+                ui.draw_cursor(
+                    frame=display_frame,
+                    point=target_pt,
+                    is_pinching=is_pinch,
+                    is_snapped=is_snapped,
+                    active_color=canvas.current_color,
+                    brush_thickness=canvas.brush_thickness,
+                )
 
-            # Render UI overlays (buttons, current tool, status hints, notifications)
+            # 3. Render open-palm radial meter if active
+            if palm_clear_progress > 0.0:
+                ui.draw_palm_clear_progress(display_frame, palm_clear_progress)
+
+            # 4. Render header toolbar and HUD
             current_thickness = canvas.eraser_thickness if canvas.is_eraser_active() else canvas.brush_thickness
             ui.draw(
                 frame=display_frame,
@@ -146,6 +190,9 @@ def main():
             if key == ord("q"):
                 print("[INFO] Quitting application.")
                 break
+            elif key == ord("z"):
+                if canvas.undo():
+                    ui.show_toast("Undo Last Shape")
             elif key == ord("c"):
                 canvas.clear()
                 ui.show_toast("Canvas Cleared!")

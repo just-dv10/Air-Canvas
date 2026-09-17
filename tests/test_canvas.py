@@ -82,6 +82,24 @@ class TestCanvas(unittest.TestCase):
             if os.path.exists(test_dir):
                 os.rmdir(test_dir)
 
+    def test_finish_stroke_and_undo(self):
+        from src.shape_recognizer import ShapeRecognizer
+        recognizer = ShapeRecognizer()
+        # Add stroke points for a straight line
+        for i in range(10):
+            self.canvas.add_stroke_point((100 + i * 10, 100 + i * 10))
+        shape = self.canvas.finish_stroke(recognizer)
+        self.assertIsNotNone(shape)
+        self.assertEqual(len(self.canvas.shapes), 1)
+        self.assertGreater(len(self.canvas.anchors), 0)
+
+        # Test Undo
+        undone = self.canvas.undo()
+        self.assertTrue(undone)
+        self.assertEqual(len(self.canvas.shapes), 0)
+        self.assertEqual(len(self.canvas.anchors), 0)
+
+
 
 class TestUIOverlay(unittest.TestCase):
     def setUp(self):

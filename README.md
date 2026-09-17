@@ -1,4 +1,4 @@
-# 🎨 Air Canvas AI - Paint in the Air with Hand Gestures
+# 🎨 Air Canvas AI - High-Precision Hand Drawing & Smart Geometric Shapes
 
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/)
 [![OpenCV](https://img.shields.io/badge/OpenCV-4.8%2B-green.svg)](https://opencv.org/)
@@ -6,36 +6,45 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![GitHub PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/)
 
-> **Air Canvas AI** is a real-time computer vision application that turns your webcam into a virtual canvas. Draw, sketch, and interact with on-screen tools using natural hand gestures in mid-air—no physical touch, pens, or sensors required!
+> **Air Canvas AI** is a real-time computer vision application that turns your webcam into a virtual drawing canvas. Draw, sketch, auto-convert rough sketches into clean geometric shapes, connect multi-shape diagrams, and interact with mid-air hand gestures—no physical touch, pens, or sensors required!
 
 ---
 
-## ✨ Features
+## ✨ Key Features
 
-- 🖐️ **Real-Time Hand Landmark Tracking**: High-accuracy fingertip tracking powered by Google's MediaPipe Hands.
-- 🖌️ **Natural Gesture Controls**:
-  - **Drawing Mode**: Raise only your index finger to paint smooth, anti-aliased strokes.
-  - **Selection / Hover Mode**: Raise both index and middle fingers to navigate, hover, and select colors or tools.
-  - **Standby Mode**: Relax your hand or make a fist to pause drawing without leaving the screen.
+- 🎯 **Rock-Solid Fingertip Tracking**: Velocity-adaptive Exponential Smoothing (EMA) filter completely eliminates webcam noise and hand tremors for zero-jitter, razor-sharp lines.
+- 🤏 **Pinch-to-Draw Precision**: Touch your Index finger and Thumb together to draw; release to stop. Prevents accidental marks when moving your hands.
+- 📐 **Smart Geometric Shape Auto-Detection**:
+  - Draw rough strokes in mid-air—Air Canvas instantly recognizes and fits clean vector shapes:
+    - **Straight Lines** (auto-straightened)
+    - **Rectangles & Boxes** (crisp 90-degree orthogonal corners)
+    - **Circles & Ellipses** (smooth circular contours)
+    - **Triangles** (3-vertex polygon fitting)
+    - **Freehand Curves** (smooth polyline interpolation)
+- 🧲 **Magnetic Anchor Snapping (Connect Shapes)**:
+  - Every shape generates connectable anchor points at its corners, endpoints, and centers.
+  - Starting or ending a stroke near an existing anchor automatically snaps to it, allowing you to easily build connected shapes, multi-shape diagrams, house blueprints, polygons, and flowcharts.
+- 🖐️ **Open-Palm Clear with Radial Countdown**:
+  - Hold an open palm (all 5 fingers spread) for 1 second to trigger an on-screen radial wipe meter and safely clear your screen.
+- ↩️ **Undo Support**: Tap the Undo button on the toolbar or press `Z` to roll back shapes.
 - 🎨 **Interactive Floating Toolbar**:
-  - Color palette: **Cyan**, **Neon Pink**, **Emerald Green**, **Amber**, and **White**.
-  - Integrated **Eraser** tool with wide radius.
-  - One-tap **Clear** button.
+  - Palette: **Cyan**, **Neon Pink**, **Emerald Green**, **Amber**, **White**, **Eraser**, **Undo**, and **Clear**.
 - 🖼️ **Dual View Modes**:
-  - **AR Blend Mode**: Your drawings are overlaid directly onto your live camera stream.
-  - **Blackboard Mode**: Switch to a solid dark canvas for clean, distraction-free digital artwork.
-- 💾 **Snapshot Export**: Press `S` anytime to save your artwork to the `saved_drawings/` folder with timestamp.
-- 📏 **Dynamic Brush Resizing**: Adjust brush and eraser stroke width on the fly.
+  - **AR Blend View**: Drawings overlaid directly on your live video stream.
+  - **Blackboard View**: Solid dark digital canvas for clean, distraction-free artwork.
+- 💾 **Snapshot Export**: Press `S` to save your artwork to `saved_drawings/` with a timestamp.
 
 ---
 
 ## 🎮 Gesture Cheat Sheet
 
-| Gesture | Fingers Up | Mode | Action |
-| :--- | :---: | :---: | :--- |
-| ☝️ **Index Up Only** | Index (1) | **Drawing Mode** | Paints on the canvas at your fingertip location. |
-| ✌️ **Index + Middle Up** | Index + Middle (2) | **Selection Mode** | Free cursor. Hover over top buttons to pick colors or tools. |
-| ✋ **Open Palm / Fist** | None or All (3+) | **Standby Mode** | Idle state; prevents accidental marks while talking or moving. |
+| Gesture | Fingers / Hand | Action |
+| :--- | :---: | :--- |
+| 🤏 **Index + Thumb Pinch** | Pinch (Touch together) | **Draw Mode**: Paints live stroke on canvas or taps toolbar buttons. |
+| ✋ **Pinch Released** | Separate Fingers | **Auto-Shape**: Analyzes stroke and converts it into a clean shape. |
+| 🧲 **Near Corner/Vertex** | Hover < 28px from anchor | **Magnetic Snap**: Snaps start or end point to connect shapes together. |
+| 🖐️ **Open Palm (5 Fingers)** | Spread hand & hold ~1s | **Canvas Clear**: Activates circular progress wipe to clear canvas. |
+| 👆 **Hover / Navigation** | No pinch | **Free Cursor**: Move crosshair across screen without drawing. |
 
 ---
 
@@ -43,7 +52,8 @@
 
 | Key | Description |
 | :---: | :--- |
-| `C` | **Clear Canvas**: Instantly erases all drawings. |
+| `Z` | **Undo**: Removes the last committed shape and restores previous anchors. |
+| `C` | **Clear Canvas**: Instantly erases all drawings and shapes. |
 | `S` | **Save Artwork**: Exports current drawing as `.png` into `saved_drawings/`. |
 | `B` | **Toggle View**: Switches between AR camera overlay and pure Blackboard mode. |
 | `+` / `=` | **Increase Brush Size**: Enlarges drawing/eraser radius. |
@@ -56,18 +66,22 @@
 
 ```text
 air-canvas-ai/
-├── .gitignore               # Ignored files (venv, screenshots, caches)
-├── LICENSE                  # MIT License
-├── README.md                # Project documentation
-├── requirements.txt         # Project dependencies
+├── .gitignore                  # Ignored files (venv, models, caches, snapshots)
+├── LICENSE                     # MIT License
+├── README.md                   # Project documentation
+├── requirements.txt            # Project dependencies
 ├── src/
 │   ├── __init__.py
-│   ├── hand_tracker.py      # MediaPipe hand detection and finger tracking wrapper
-│   ├── canvas.py            # Drawing layer, stroke interpolation, and blending
-│   ├── ui_overlay.py        # Top toolbar, buttons, and HUD feedback
-│   └── main.py              # Main execution loop and camera capture
+│   ├── stabilizer.py           # Adaptive velocity-aware jitter filter
+│   ├── shape_recognizer.py     # Smart shape classification, fitting & anchor snapping
+│   ├── hand_tracker.py         # MediaPipe tracking (Tasks & Solutions compatible)
+│   ├── canvas.py               # Shape repository, anchor manager, live preview & blending
+│   ├── ui_overlay.py           # Toolbar buttons, magnetic snap HUD, palm clear radial meter
+│   └── main.py                 # Main application loop & camera capture
 └── tests/
-    └── test_canvas.py       # Offline unit tests for canvas and UI logic
+    ├── test_canvas.py          # Unit tests for canvas, strokes, undo, and toolbar
+    ├── test_shape_recognizer.py# Unit tests for geometric shape fitting & snapping
+    └── test_hand_tracker.py    # Unit tests for tracker and stabilizers
 ```
 
 ---
@@ -76,7 +90,7 @@ air-canvas-ai/
 
 ### 1. Prerequisites
 - Python 3.8 to 3.12 installed.
-- A functional webcam or external USB camera.
+- A functional webcam or USB camera.
 
 ### 2. Clone the Repository
 ```bash
@@ -110,7 +124,6 @@ python -m src.main
 ```
 
 ### Custom Arguments
-If you have multiple webcams or wish to run at a custom resolution:
 ```bash
 # Run with camera index 1 and 1920x1080 resolution
 python -m src.main --camera 1 --width 1920 --height 1080
@@ -118,9 +131,9 @@ python -m src.main --camera 1 --width 1920 --height 1080
 
 ---
 
-## 🧪 Running Tests
+## 🧪 Running Automated Tests
 
-Run the automated offline unit tests (does not require camera access):
+Run the automated offline unit tests (runs without camera hardware):
 ```bash
 python -m unittest discover -s tests
 ```
@@ -129,51 +142,32 @@ python -m unittest discover -s tests
 
 ## 📤 How to Upload to GitHub
 
-Follow these steps to publish this project to your GitHub account:
-
 1. **Create a new repository on GitHub**:
    - Go to [github.com/new](https://github.com/new)
    - Repository name: `air-canvas-ai`
-   - Description: *Computer vision-based Air Canvas using Python, OpenCV, and MediaPipe.*
-   - Set repository to **Public** (or **Private**).
-   - **Do NOT** check "Add a README file" or ".gitignore" (we already have them).
+   - Set visibility to **Public** (or **Private**).
+   - Leave "Add README" and ".gitignore" **unchecked**.
    - Click **Create repository**.
 
-2. **Initialize Git & Push from your terminal**:
+2. **Push your code from terminal**:
    ```bash
    cd air-canvas-ai
 
-   # Initialize git repository
-   git init
-
-   # Stage all files
+   # Stage any new changes
    git add .
 
-   # Create initial commit
-   git commit -m "feat: initial commit of Air Canvas AI application"
+   # Commit
+   git commit -m "feat: add jitter stabilization, pinch drawing, and smart shape snapping"
 
    # Rename branch to main
    git branch -M main
 
-   # Link your remote GitHub repository
+   # Add your remote repository (replace with your username)
    git remote add origin https://github.com/<YOUR-USERNAME>/air-canvas-ai.git
 
-   # Push your code
+   # Push to GitHub
    git push -u origin main
    ```
-
----
-
-## 🤝 Contributing
-
-Contributions, issues, and feature requests are welcome!
-Feel free to check the [issues page](https://github.com/).
-
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
 
 ---
 
