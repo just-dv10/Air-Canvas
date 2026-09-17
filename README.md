@@ -12,6 +12,18 @@
 
 ## ✨ Key Features
 
+- 👐 **Simultaneous Two-Hand Recognition**:
+  - Independent simultaneous tracking for both hands with dedicated stabilizers:
+    - **Right Hand**: Vibrant Cyan neon reticle (`#00E6FF`)
+    - **Left Hand**: Neon Magenta reticle (`#FF14DC`)
+  - Draw with both hands at the same time or use one hand to grab and the other to draw!
+- 🔍 **Two-Hand Mid-Air Pinch-to-Scale**:
+  - Pinch a shape with one hand and pinch with your second hand—spread your hands apart to enlarge the shape or pinch together to shrink it!
+- 💎 **Modern Glassmorphism UI**:
+  - Frosted translucent floating island toolbar with pill-shaped buttons.
+  - Active color indicators with glowing neon highlight rings.
+  - Dynamic HUD badges: Active Hand Counter, Real-Time FPS counter, Mode status pill, and interactive Brush Size preview.
+  - Animated Toast notifications and subtle keyboard shortcut badges.
 - 🎯 **Rock-Solid Fingertip Tracking**: Velocity-adaptive Exponential Smoothing (EMA) filter completely eliminates webcam noise and hand tremors for zero-jitter, razor-sharp lines.
 - 🤏 **Pinch-to-Draw Precision**: Touch your Index finger and Thumb together to draw; release to stop. Prevents accidental marks when moving your hands.
 - 📐 **Smart Geometric Shape Auto-Detection**:
@@ -45,11 +57,12 @@
 | Gesture | Fingers / Hand | Action |
 | :--- | :---: | :--- |
 | 🤏 **Pinch on a Shape** | Index + Thumb on shape | **Grab & Move**: Picks up the shape. Drag your hand to place it anywhere! |
+| 🤏 **Both Hands Pinch** | Both hands pinching on shape | **Two-Hand Scale**: Spread hands apart to enlarge or move together to shrink. |
 | 🤏 **Pinch in Empty Space** | Index + Thumb together | **Draw Mode**: Paints live stroke or taps toolbar buttons. |
 | ✋ **Pinch Released** | Separate Fingers | **Auto-Shape / Drop**: Converts stroke to clean shape, or drops moved shape. |
 | 🧲 **Near Corner/Vertex** | Hover < 28px from anchor | **Magnetic Snap**: Snaps start or end point to connect shapes together. |
 | 🖐️ **Open Palm (5 Fingers)** | Spread hand & hold ~1s | **Canvas Clear**: Activates circular progress wipe to clear canvas. |
-| 👆 **Hover / Navigation** | No pinch | **Free Cursor**: Move crosshair across screen without drawing. |
+| 👆 **Hover / Navigation** | No pinch | **Dual Neon Cursors**: Cyan (Right) & Magenta (Left) crosshairs. |
 
 
 ---
