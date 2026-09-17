@@ -118,6 +118,38 @@ class TestCanvas(unittest.TestCase):
         # New position should hit
         self.assertEqual(self.canvas.find_shape_at((200, 200)), 0)
 
+    def test_canvas_find_with_exclusion_and_dual_shapes(self):
+        from src.shape_recognizer import ShapeRecognizer
+        recognizer = ShapeRecognizer()
+        # Shape 0: line at x ~ 100
+        for i in range(10):
+            self.canvas.add_stroke_point((100, 100 + i * 10))
+        self.canvas.finish_stroke(recognizer)
+
+        # Shape 1: line at x ~ 110 (close to shape 0)
+        for i in range(10):
+            self.canvas.add_stroke_point((110, 100 + i * 10))
+        self.canvas.finish_stroke(recognizer)
+
+        self.assertEqual(len(self.canvas.shapes), 2)
+
+        # Finding near (105, 150) without exclusion returns a shape
+        hit = self.canvas.find_shape_at((105, 150), margin=30.0)
+        self.assertIsNotNone(hit)
+
+        # Finding with exclusion of shape 1 returns shape 0
+        hit_ex1 = self.canvas.find_shape_at((105, 150), margin=30.0, exclude_indices=[1])
+        self.assertEqual(hit_ex1, 0)
+
+        # Finding with exclusion of shape 0 returns shape 1
+        hit_ex0 = self.canvas.find_shape_at((105, 150), margin=30.0, exclude_indices=[0])
+        self.assertEqual(hit_ex0, 1)
+
+        # Snapping with exclusion ignores in-flight shape
+        snapped = self.canvas.snap_shape_anchors(0, snap_threshold=28.0, exclude_indices=[1])
+        self.assertFalse(snapped)
+
+
 
 
 

@@ -5,6 +5,7 @@ color palettes, blending, and snapshot exports.
 
 import os
 import time
+import math
 from typing import Tuple, List, Optional, Dict
 import cv2
 import numpy as np
@@ -163,12 +164,28 @@ class Canvas:
                 if a not in self.anchors:
                     self.anchors.append(a)
 
-    def find_shape_at(self, pt: Tuple[int, int], margin: float = 24.0) -> Optional[int]:
-        """Returns the index of the topmost shape containing or near pt."""
+    def find_shape_at(
+        self,
+        pt: Tuple[int, int],
+        margin: float = 24.0,
+        exclude_indices: Optional[List[int]] = None,
+    ) -> Optional[int]:
+        """Returns the index of the closest shape containing or near pt, optionally excluding specific shapes."""
+        exclude = set(exclude_indices) if exclude_indices else set()
+        best_idx = None
+        best_dist = float("inf")
+
         for i in reversed(range(len(self.shapes))):
+            if i in exclude:
+                continue
             if self.shapes[i].contains_point(pt, margin=margin):
-                return i
-        return None
+                bx1, by1, bx2, by2 = self.shapes[i].get_bounds()
+                cx, cy = (bx1 + bx2) // 2, (by1 + by2) // 2
+                dist = math.hypot(pt[0] - cx, pt[1] - cy)
+                if dist < best_dist:
+                    best_dist = dist
+                    best_idx = i
+        return best_idx
 
     def move_shape(self, shape_idx: int, dx: int, dy: int) -> None:
         """Translates shape points and refreshes canvas."""
@@ -177,17 +194,26 @@ class Canvas:
             self._rebuild_anchors()
             self._render_all_shapes()
 
-    def snap_shape_anchors(self, shape_idx: int, snap_threshold: float = 28.0) -> bool:
+    def snap_shape_anchors(
+        self,
+        shape_idx: int,
+        snap_threshold: float = 28.0,
+        exclude_indices: Optional[List[int]] = None,
+    ) -> bool:
         """
         After moving a shape, snaps it if any of its anchors are close to another shape's anchors.
+        Optionally excludes specific shapes (e.g. other shapes currently being held by another hand).
         """
         if not (0 <= shape_idx < len(self.shapes)):
             return False
 
+        exclude = set(exclude_indices) if exclude_indices else set()
+        exclude.add(shape_idx)
+
         moved_shape = self.shapes[shape_idx]
         other_anchors = []
         for i, s in enumerate(self.shapes):
-            if i != shape_idx:
+            if i not in exclude:
                 other_anchors.extend(s.anchors)
 
         if not other_anchors:
@@ -207,7 +233,14 @@ class Canvas:
             return True
         return False
 
-    def render_shape_box(self, frame: cv2.Mat, shape_idx: int, is_grabbed: bool = False) -> None:
+    def render_shape_box(
+        self,
+        frame: cv2.Mat,
+        shape_idx: int,
+        is_grabbed: bool = False,
+        custom_color: Optional[Tuple[int, int, int]] = None,
+        custom_label: Optional[str] = None,
+    ) -> None:
         """Draws bounding box feedback when hovering or grabbing a shape."""
         if not (0 <= shape_idx < len(self.shapes)):
             return
@@ -218,7 +251,7 @@ class Canvas:
         bx1, by1 = max(0, x1 - pad), max(0, y1 - pad)
         bx2, by2 = min(self.width, x2 + pad), min(self.height, y2 + pad)
 
-        border_color = (0, 255, 0) if is_grabbed else (0, 220, 255)
+        border_color = custom_color if custom_color is not None else ((0, 255, 0) if is_grabbed else (0, 220, 255))
         thickness = 2 if is_grabbed else 1
 
         # Bounding box
@@ -230,11 +263,17 @@ class Canvas:
             cv2.rectangle(frame, (cx - h_size // 2, cy - h_size // 2), (cx + h_size // 2, cy + h_size // 2), border_color, cv2.FILLED)
 
         # Tag label
-        label = "DRAGGING" if is_grabbed else "PINCH TO GRAB"
-        tag_bg = (0, 180, 0) if is_grabbed else (25, 25, 30)
-        text_color = (0, 0, 0) if is_grabbed else (255, 255, 255)
-        cv2.rectangle(frame, (bx1, max(0, by1 - 22)), (bx1 + 115, by1), tag_bg, cv2.FILLED)
-        cv2.putText(frame, label, (bx1 + 6, by1 - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.38, text_color, 1, cv2.LINE_AA)
+        label = custom_label if custom_label else ("DRAGGING" if is_grabbed else "PINCH TO GRAB")
+        tag_bg = (18, 18, 24)
+        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.38, 1)
+        tag_w = tw + 14
+        tag_h = th + 8
+        tag_y1 = max(0, by1 - tag_h - 2)
+        tag_y2 = by1
+
+        cv2.rectangle(frame, (bx1, tag_y1), (bx1 + tag_w, tag_y2), tag_bg, cv2.FILLED)
+        cv2.rectangle(frame, (bx1, tag_y1), (bx1 + tag_w, tag_y2), border_color, 1)
+        cv2.putText(frame, label, (bx1 + 7, tag_y2 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.38, border_color, 1, cv2.LINE_AA)
 
     def undo(self) -> bool:
         """Removes the last drawn shape."""
